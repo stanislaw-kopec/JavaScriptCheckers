@@ -1,278 +1,93 @@
-const board = [
-    null, 0, null, 1, null, 2, null, 3,
-    4, null, 5, null, 6, null, 7, null,
-    null, 8, null, 9, null, 10, null, 11,
-    null, null, null, null, null, null, null, null,
-    null, null, null, null, null, null, null, null,
-    12, null, 13, null, 14, null, 15, null,
-    null, 16, null, 17, null, 18, null, 19,
-    20, null, 21, null, 22, null, 23, null,
-]
+// Każde miejsce w tablicy odpowiada jednemu polu planszy, od 0 do 63.
+function createInitialBoard() {
+    const board = [
+        null, 0, null, 1, null, 2, null, 3,
+        4, null, 5, null, 6, null, 7, null,
+        null, 8, null, 9, null, 10, null, 11,
+        null, null, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, null,
+        12, null, 13, null, 14, null, 15, null,
+        null, 16, null, 17, null, 18, null, 19,
+        20, null, 21, null, 22, null, 23, null,
+    ];
 
+    // Zamieniamy numery pionków na obiekty opisujące ich właściwości.
+    for (let index = 0; index < board.length; index++) {
+        const pieceId = board[index];
 
-let findPiece = function (pieceId) {
-    let parsed = parseInt(pieceId);
-    return board.indexOf(parsed);
+        if (pieceId !== null) {
+            let color = "gold";
+
+            if (pieceId < 12) {
+                color = "black";
+            }
+
+            board[index] = {
+                id: pieceId,
+                color: color,
+                isKing: false
+            };
+        }
+    }
+
+    return board;
+}
+
+// Stan gry: wszystkie informacje o bieżącej rozgrywce w jednym miejscu.
+const gameState = {
+    board: createInitialBoard(),
+    currentPlayer: "gold",
+    selectedPieceIndex: null
 };
 
-const cells = document.querySelectorAll("td");
-let goldPieces = document.querySelectorAll(".gold-piece");
-let blackPieces = document.querySelectorAll(".black-piece");
-const goldTurnText = document.querySelectorAll(".gold-turn-text");
-const blackTurntext = document.querySelectorAll(".black-turn-text");
-const divider = document.querySelector("#divider");
+// Ta funkcja zmienia wyłącznie dane gry. Nie korzysta z elementów HTML.
+function selectPiece(boardIndex) {
+    const piece = gameState.board[boardIndex];
 
-
-// true oznacza turę złotych pionków, false — czarnych.
-let turn = true;
-let goldScore = 12;
-let blackScore = 12;
-let playerPieces;
-
-
-let selectedPiece = {
-    pieceId: -1,
-    indexOfBoardPiece: -1,
-    isKing: false,
-    seventhSpace: false,
-    ninthSpace: false,
-    fourteenthSpace: false,
-    eighteenthSpace: false,
-    minusSeventhSpace: false,
-    minusNinthSpace: false,
-    minusFourteenthSpace: false,
-    minusEighteenthSpace: false
-}
-
-
-function givePiecesEventListeners() {
-    if (turn) {
-        for (let i = 0; i < goldPieces.length; i++) {
-            goldPieces[i].addEventListener("click", getPlayerPieces);
-        }
-    } else {
-        for (let i = 0; i < blackPieces.length; i++) {
-            blackPieces[i].addEventListener("click", getPlayerPieces);
-        }
-    }
-}
-
-
-
-function getPlayerPieces(event) {
-    if (turn) {
-        playerPieces = goldPieces;
-    } else {
-        playerPieces = blackPieces;
-    }
-    removeCellonclick();
-    resetBorders();
-    resetSelectedPieceProperties();
-    getSelectedPiece(event);
-}
-
-function removeCellonclick() {
-    for (let i = 0; i < cells.length; i++) {
-        cells[i].removeAttribute("onclick");
-    }
-}
-
-function resetBorders() {
-    for (let i = 0; i < playerPieces.length; i++) {
-        playerPieces[i].classList.remove("selected-piece");
-    }
-}
-
-
-function resetSelectedPieceProperties() {
-    selectedPiece.pieceId = -1;
-    selectedPiece.indexOfBoardPiece = -1;
-    selectedPiece.isKing = false;
-    selectedPiece.seventhSpace = false;
-    selectedPiece.ninthSpace = false;
-    selectedPiece.fourteenthSpace = false;
-    selectedPiece.eighteenthSpace = false;
-    selectedPiece.minusSeventhSpace = false;
-    selectedPiece.minusNinthSpace = false;
-    selectedPiece.minusFourteenthSpace = false;
-    selectedPiece.minusEighteenthSpace = false;
-}
-
-
-function getSelectedPiece(event) {
-    const piece = event.currentTarget;
-    selectedPiece.pieceId = Number(piece.id);
-    selectedPiece.indexOfBoardPiece = findPiece(selectedPiece.pieceId);
-    piece.classList.add("selected-piece");
-}
-
-
-// Poniższa logika ruchów i bić jest nieukończona. Podłączymy ją w kolejnych etapach.
-function isPieceKing() {
-    if (document.getElementById(selectedPiece.pieceId).classList.contains("king")) {
-        selectedPiece.isKing = true;
-    } else {
-        selectedPiece.isKing = false;
-    }
-    getAvailableSpaces();
-}
-
-function getAvailableSpaces() {
-    if (board[selectedPiece.indexOfBoardPiece + 7] === null && 
-        cells[selectedPiece.indexOfBoardPiece + 7].classList.contains("npcell") !== true) {
-        selectedPiece.seventhSpace = true;
-    }
-    if (board[selectedPiece.indexOfBoardPiece + 9] === null && 
-        cells[selectedPiece.indexOfBoardPiece + 9].classList.contains("npcell") !== true) {
-        selectedPiece.ninthSpace = true;
-    }
-    if (board[selectedPiece.indexOfBoardPiece - 7] === null && 
-        cells[selectedPiece.indexOfBoardPiece - 7].classList.contains("npcell") !== true) {
-        selectedPiece.minusSeventhSpace = true;
-    }
-    if (board[selectedPiece.indexOfBoardPiece - 9] === null && 
-        cells[selectedPiece.indexOfBoardPiece - 9].classList.contains("npcell") !== true) {
-        selectedPiece.minusNinthSpace = true;
-    }
-    checkAvailableJumpSpaces();
-}
-
-
-
-function checkAvailableJumpSpaces() {
-    if (turn) {
-        if (board[selectedPiece.indexOfBoardPiece + 14] === null 
-        && cells[selectedPiece.indexOfBoardPiece + 14].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece + 7] >= 12) {
-            selectedPiece.fourteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece + 18] === null 
-        && cells[selectedPiece.indexOfBoardPiece + 18].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece + 9] >= 12) {
-            selectedPiece.eighteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece - 14] === null 
-        && cells[selectedPiece.indexOfBoardPiece - 14].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece - 7] >= 12) {
-            selectedPiece.minusFourteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece - 18] === null 
-        && cells[selectedPiece.indexOfBoardPiece - 18].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece - 9] >= 12) {
-            selectedPiece.minusEighteenthSpace = true;
-        }
-    } else {
-        if (board[selectedPiece.indexOfBoardPiece + 14] === null 
-        && cells[selectedPiece.indexOfBoardPiece + 14].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece + 7] < 12 && board[selectedPiece.indexOfBoardPiece + 7] !== null) {
-            selectedPiece.fourteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece + 18] === null 
-        && cells[selectedPiece.indexOfBoardPiece + 18].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece + 9] < 12 && board[selectedPiece.indexOfBoardPiece + 9] !== null) {
-            selectedPiece.eighteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece - 14] === null && cells[selectedPiece.indexOfBoardPiece - 14].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece - 7] < 12 
-        && board[selectedPiece.indexOfBoardPiece - 7] !== null) {
-            selectedPiece.minusFourteenthSpace = true;
-        }
-        if (board[selectedPiece.indexOfBoardPiece - 18] === null && cells[selectedPiece.indexOfBoardPiece - 18].classList.contains("npcell") !== true
-        && board[selectedPiece.indexOfBoardPiece - 9] < 12
-        && board[selectedPiece.indexOfBoardPiece - 9] !== null) {
-            selectedPiece.minusEighteenthSpace = true;
-        }
-    }
-    checkPieceConditions();
-}
-
-
-function checkPieceConditions() {
-    if (selectedPiece.isKing) {
-        givePieceBorder();
-    } else {
-        if (turn) {
-            selectedPiece.minusSeventhSpace = false;
-            selectedPiece.minusNinthSpace = false;
-            selectedPiece.minusFourteenthSpace = false;
-            selectedPiece.minusEighteenthSpace = false;
-        } else {
-            selectedPiece.seventhSpace = false;
-            selectedPiece.ninthSpace = false;
-            selectedPiece.fourteenthSpace = false;
-            selectedPiece.eighteenthSpace = false;
-        }
-        givePieceBorder();
-    }
-}
-
-
-function givePieceBorder() {
-    if (selectedPiece.seventhSpace || selectedPiece.ninthSpace || selectedPiece.fourteenthSpace || selectedPiece.eighteenthSpace
-    || selectedPiece.minusSeventhSpace || selectedPiece.minusNinthSpace || selectedPiece.minusFourteenthSpace || selectedPiece.minusEighteenthSpace) {
-        document.getElementById(selectedPiece.pieceId).style.border = "3px solid green";
-        giveCellsClick();
-    } else {
+    if (!piece || piece.color !== gameState.currentPlayer) {
         return;
     }
+
+    gameState.selectedPieceIndex = boardIndex;
 }
 
-function giveCellsClick() {
-    if (selectedPiece.seventhSpace) {
-        cells[selectedPiece.indexOfBoardPiece + 7].setAttribute("onclick", "makeMove(7)");
-    }
-    if (selectedPiece.ninthSpace) {
-        cells[selectedPiece.indexOfBoardPiece + 9].setAttribute("onclick", "makeMove(9)");
-    }
-    if (selectedPiece.fourteenthSpace) {
-        cells[selectedPiece.indexOfBoardPiece + 14].setAttribute("onclick", "makeMove(14)");
-    }
-    if (selectedPiece.eighteenthSpace) {
-        cells[selectedPiece.indexOfBoardPiece + 18].setAttribute("onclick", "makeMove(18)");
-    }
-    if (selectedPiece.minusSeventhSpace) {
-        cells[selectedPiece.indexOfBoardPiece - 7].setAttribute("onclick", "makeMove(-7)");
-    }
-    if (selectedPiece.minusNinthSpace) {
-        cells[selectedPiece.indexOfBoardPiece - 9].setAttribute("onclick", "makeMove(-9)");
-    }
-    if (selectedPiece.minusFourteenthSpace) {
-        cells[selectedPiece.indexOfBoardPiece - 14].setAttribute("onclick", "makeMove(-14)");
-    }
-    if (selectedPiece.minusEighteenthSpace) {
-        cells[selectedPiece.indexOfBoardPiece - 18].setAttribute("onclick", "makeMove(-18)");
-    }
-}
+const cells = document.querySelectorAll(".field td");
 
+// Odtwarzamy pionki i zaznaczenie na podstawie danych zapisanych w gameState.
+function renderBoard() {
+    for (let index = 0; index < gameState.board.length; index++) {
+        const cell = cells[index];
+        const piece = gameState.board[index];
+        cell.textContent = "";
 
-function makeMove(number) {
-    document.getElementById(selectedPiece.pieceId).remove();
-    cells[selectedPiece.indexOfBoardPiece].innerHTML = "";
-    if (turn) {
-        if (selectedPiece.isKing) {
-            cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<p class="gold-piece king" id="${selectedPiece.pieceId}"></p>`;
-            goldPieces = document.querySelectorAll(".gold-piece");
-        } else {
-            cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<p class="gold-piece" id="${selectedPiece.pieceId}"></p>`;
-            goldPieces = document.querySelectorAll(".gold-piece");
-        }
-    } else {
-        if (selectedPiece.isKing) {
-            cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<span class="black-piece king" id="${selectedPiece.pieceId}"></span>`;
-            blackPieces = document.querySelectorAll(".black-piece");
-        } else {
-            cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<span class="black-piece" id="${selectedPiece.pieceId}"></span>`;
-            blackPieces = document.querySelectorAll(".black-piece");
+        if (piece !== null) {
+            const pieceElement = document.createElement("p");
+            pieceElement.id = String(piece.id);
+            pieceElement.className = piece.color + "-piece";
+
+            if (gameState.selectedPieceIndex === index) {
+                pieceElement.classList.add("selected-piece");
+            }
+
+            cell.appendChild(pieceElement);
         }
     }
+}
 
-    let indexOfPiece = selectedPiece.indexOfBoardPiece
-    if (number === 14 || number === -14 || number === 18 || number === -18) {
-        changeData(indexOfPiece, indexOfPiece + number, indexOfPiece + number / 2);
-    } else {
-        changeData(indexOfPiece, indexOfPiece + number);
+function handleCellClick(event) {
+    const boardIndex = Number(event.currentTarget.dataset.index);
+    selectPiece(boardIndex);
+    renderBoard();
+}
+
+function giveCellsEventListeners() {
+    for (let index = 0; index < cells.length; index++) {
+        // data-index łączy pole HTML z jego miejscem w tablicy planszy.
+        cells[index].dataset.index = index;
+        cells[index].addEventListener("click", handleCellClick);
     }
 }
 
-// Po wczytaniu strony zacznij reagować na kliknięcia pionków bieżącego gracza.
-givePiecesEventListeners();
+// Pola pozostają na stronie, więc ich obsługa kliknięć przetrwa odtworzenie pionków.
+giveCellsEventListeners();
+renderBoard();
