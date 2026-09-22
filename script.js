@@ -16,13 +16,14 @@ let findPiece = function (pieceId) {
 };
 
 const cells = document.querySelectorAll("td");
-let goldsPieces = document.querySelectorAll(".black-piece");
-let blacksPieces = document.querySelectorAll(".gold-piece");
+let goldPieces = document.querySelectorAll(".gold-piece");
+let blackPieces = document.querySelectorAll(".black-piece");
 const goldTurnText = document.querySelectorAll(".gold-turn-text");
 const blackTurntext = document.querySelectorAll(".black-turn-text");
 const divider = document.querySelector("#divider");
 
 
+// true oznacza turę złotych pionków, false — czarnych.
 let turn = true;
 let goldScore = 12;
 let blackScore = 12;
@@ -46,26 +47,28 @@ let selectedPiece = {
 
 function givePiecesEventListeners() {
     if (turn) {
-        for (let i = 0; i < goldsPieces.length; i++) {
-            goldsPieces[i].addEventListener("click", getPlayerPieces);
+        for (let i = 0; i < goldPieces.length; i++) {
+            goldPieces[i].addEventListener("click", getPlayerPieces);
         }
     } else {
-        for (let i = 0; i < blacksPieces.length; i++) {
-            blacksPieces[i].addEventListener("click", getPlayerPieces);
+        for (let i = 0; i < blackPieces.length; i++) {
+            blackPieces[i].addEventListener("click", getPlayerPieces);
         }
     }
 }
 
 
 
-function getPlayerPieces() {
+function getPlayerPieces(event) {
     if (turn) {
-        playerPieces = goldsPieces;
+        playerPieces = goldPieces;
     } else {
-        playerPieces = blacksPieces;
+        playerPieces = blackPieces;
     }
     removeCellonclick();
     resetBorders();
+    resetSelectedPieceProperties();
+    getSelectedPiece(event);
 }
 
 function removeCellonclick() {
@@ -76,16 +79,14 @@ function removeCellonclick() {
 
 function resetBorders() {
     for (let i = 0; i < playerPieces.length; i++) {
-        playerPieces[i].style.border = "1px solid white";
+        playerPieces[i].classList.remove("selected-piece");
     }
-    resetSelectedPieceProperties();
-    getSelectedPiece();
 }
 
 
 function resetSelectedPieceProperties() {
     selectedPiece.pieceId = -1;
-    selectedPiece.pieceId = -1;
+    selectedPiece.indexOfBoardPiece = -1;
     selectedPiece.isKing = false;
     selectedPiece.seventhSpace = false;
     selectedPiece.ninthSpace = false;
@@ -98,13 +99,15 @@ function resetSelectedPieceProperties() {
 }
 
 
-function getSelectedPiece() {
-    selectedPiece.pieceId = parseInt(event.target.id);
+function getSelectedPiece(event) {
+    const piece = event.currentTarget;
+    selectedPiece.pieceId = Number(piece.id);
     selectedPiece.indexOfBoardPiece = findPiece(selectedPiece.pieceId);
-    isPieceKing();
+    piece.classList.add("selected-piece");
 }
 
 
+// Poniższa logika ruchów i bić jest nieukończona. Podłączymy ją w kolejnych etapach.
 function isPieceKing() {
     if (document.getElementById(selectedPiece.pieceId).classList.contains("king")) {
         selectedPiece.isKing = true;
@@ -248,18 +251,18 @@ function makeMove(number) {
     if (turn) {
         if (selectedPiece.isKing) {
             cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<p class="gold-piece king" id="${selectedPiece.pieceId}"></p>`;
-            redsPieces = document.querySelectorAll(".black-piece");
+            goldPieces = document.querySelectorAll(".gold-piece");
         } else {
             cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<p class="gold-piece" id="${selectedPiece.pieceId}"></p>`;
-            redsPieces = document.querySelectorAll(".black-piece");
+            goldPieces = document.querySelectorAll(".gold-piece");
         }
     } else {
         if (selectedPiece.isKing) {
             cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<span class="black-piece king" id="${selectedPiece.pieceId}"></span>`;
-            blacksPieces = document.querySelectorAll(".gold-piece");
+            blackPieces = document.querySelectorAll(".black-piece");
         } else {
             cells[selectedPiece.indexOfBoardPiece + number].innerHTML = `<span class="black-piece" id="${selectedPiece.pieceId}"></span>`;
-            blacksPieces = document.querySelectorAll(".gold-piece");
+            blackPieces = document.querySelectorAll(".black-piece");
         }
     }
 
@@ -270,3 +273,6 @@ function makeMove(number) {
         changeData(indexOfPiece, indexOfPiece + number);
     }
 }
+
+// Po wczytaniu strony zacznij reagować na kliknięcia pionków bieżącego gracza.
+givePiecesEventListeners();
