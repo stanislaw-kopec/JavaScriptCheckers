@@ -137,6 +137,10 @@ button {
 .cell{
     background-color: #333333;
 }
+.cell.available-move {
+    background-image: radial-gradient(circle, #F0F8FF 0 8px, transparent 9px);
+    cursor: pointer;
+}
 .black-piece{
     width: 40px;
     height: 40px;
@@ -156,7 +160,7 @@ button {
     text-align: center;
 }
 .selected-piece {
-    outline: 3px solid #ffcf40;
+    outline: 3px solid #F0F8FF;
     outline-offset: 2px;
 }
 .damka.black-piece{
@@ -188,4 +192,13 @@ button {
 .gamer2{
     border: solid 8px #a67c00;
     background-color: #eeae00;
+}
+.sideinfo .active-turn {
+    outline: 3px solid #F0F8FF;
+    outline-offset: 0px;
+}
+.turn-status {
+    margin-left: 40px;
+    font-weight: bold;
+    color: #222222;
 }

@@ -51,14 +51,77 @@ function selectPiece(boardIndex) {
     gameState.selectedPieceIndex = boardIndex;
 }
 
+// Zwracamy numery pustych pól, na które pionek może wykonać zwykły ruch.
+function getAvailableMoves(boardIndex) {
+    const piece = gameState.board[boardIndex];
+
+    if (!piece || piece.color !== gameState.currentPlayer) {
+        return [];
+    }
+
+    const row = Math.floor(boardIndex / 8);
+    const column = boardIndex % 8;
+    let direction = 1;
+
+    if (piece.color === "gold") {
+        direction = -1;
+    }
+
+    const nextRow = row + direction;
+    const moves = [];
+
+    // Sprawdzamy przekątną w lewo, a następnie w prawo.
+    for (const columnOffset of [-1, 1]) {
+        const nextColumn = column + columnOffset;
+
+        if (nextRow >= 0 && nextRow < 8 && nextColumn >= 0 && nextColumn < 8) {
+            const targetIndex = nextRow * 8 + nextColumn;
+
+            if (gameState.board[targetIndex] === null) {
+                moves.push(targetIndex);
+            }
+        }
+    }
+
+    return moves;
+}
+
+function makeMove(targetIndex) {
+    const sourceIndex = gameState.selectedPieceIndex;
+    const availableMoves = getAvailableMoves(sourceIndex);
+
+    // Odrzucony ruch nie zmienia planszy, zaznaczenia ani tury.
+    if (!availableMoves.includes(targetIndex)) {
+        return false;
+    }
+
+    gameState.board[targetIndex] = gameState.board[sourceIndex];
+    gameState.board[sourceIndex] = null;
+    gameState.selectedPieceIndex = null;
+
+    if (gameState.currentPlayer === "gold") {
+        gameState.currentPlayer = "black";
+    } else {
+        gameState.currentPlayer = "gold";
+    }
+
+    return true;
+}
+
 const cells = document.querySelectorAll(".field td");
+const goldPlayer = document.querySelector(".gamer2");
+const blackPlayer = document.querySelector(".gamer1");
+const turnStatus = document.querySelector(".turn-status");
 
 // Odtwarzamy pionki i zaznaczenie na podstawie danych zapisanych w gameState.
 function renderBoard() {
+    const availableMoves = getAvailableMoves(gameState.selectedPieceIndex);
+
     for (let index = 0; index < gameState.board.length; index++) {
         const cell = cells[index];
         const piece = gameState.board[index];
         cell.textContent = "";
+        cell.classList.toggle("available-move", availableMoves.includes(index));
 
         if (piece !== null) {
             const pieceElement = document.createElement("p");
@@ -72,11 +135,34 @@ function renderBoard() {
             cell.appendChild(pieceElement);
         }
     }
+
+    renderTurn();
+}
+
+function renderTurn() {
+    goldPlayer.classList.toggle("active-turn", gameState.currentPlayer === "gold");
+    blackPlayer.classList.toggle("active-turn", gameState.currentPlayer === "black");
+
+    let message = "Tura: czarne pionki";
+
+    if (gameState.currentPlayer === "gold") {
+        message = "Tura: złote pionki";
+    }
+
+    if (turnStatus.textContent !== message) {
+        turnStatus.textContent = message;
+    }
 }
 
 function handleCellClick(event) {
     const boardIndex = Number(event.currentTarget.dataset.index);
-    selectPiece(boardIndex);
+
+    if (gameState.board[boardIndex] === null) {
+        makeMove(boardIndex);
+    } else {
+        selectPiece(boardIndex);
+    }
+
     renderBoard();
 }
 
