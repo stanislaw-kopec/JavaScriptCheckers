@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Warcaby</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="headerh1">
+                WARCABY
+            </h1>
+            <div class="line"></div>
+        </div>
+        <div class="main">
+            <div class="rules">
+                <h2>Witaj, poniżej znajdziesz zasady gry.</h2>
+                <ul>
+                    <li>Rozgrywana jest na planszy o rozmiarze 8 × 8 pól pokolorowanych na przemian na kolor jasny i
+                        ciemny.</li>
+                    <li>Każdy gracz rozpoczyna grę z dwunastoma pionami.</li>
+                    <li>Pierwszy ruch wykonuje gracz z jaśniejszymi pionkami.</li>
+                    <li>Celem gry jest zbicie wszystkich pionów przeciwnika (w tym damek) albo zablokowanie wszystkich,
+                        które pozostają na planszy, pozbawiając przeciwnika możliwości wykonania ruchu.</li>
+                    <li>Pionki mogą poruszać się o jedno pole do przodu lub po przekątnej na wolne pola.</li>
+                    <li>Bicie pionkiem następuje przez przeskoczenie sąsiedniego pionka (lub damki) przeciwnika na pole
+                        znajdujące się tuż za nim lub po przekątnej (pole to musi być wolne). Zbite piony są usuwane z
+                        planszy po zakończeniu ruchu.</li>
+                    <li>Pionki mogą bić zarówno do przodu, jak i do tyłu.</li>
+                    <li>W jednym ruchu wolno wykonać więcej niż jedno bicie tym samym pionem, przeskakując przez kolejne
+                        piony lub damki przeciwnika.</li>
+                    <li>Bicia są obowiązkowe. Kiedy istnieje kilka możliwych bić, gracz musi wykonać wszystkie. Podczas
+                        bicia nie można przeskakiwać więcej niż jeden raz przez ten sam pion lub damkę.</li>
+                    <li>Pion, który dojdzie do ostatniego rzędu planszy, staje się damką.</li>
+                    <li>Damki mogą poruszać się w jednym ruchu o dowolną liczbę pól do przodu lub do tyłu lub po
+                        przekątnej, zatrzymując się na wolnych polach.</li>
+                    <li>Bicie damką jest możliwe z dowolnej odległości po linii przekątnej i następuje przez
+                        przeskoczenie pionu (lub damki) przeciwnika, za którym musi znajdować się co najmniej jedno
+                        wolne pole.</li>
+                </ul>
+            </div>
+            <div class="game">
+
+                <div class="gamespaceboard">
+
+                    <div class="top">
+                        <ul class="ultop">
+                            <li class="litop">1</li>
+                            <li class="litop">2</li>
+                            <li class="litop">3</li>
+                            <li class="litop">4</li>
+                            <li class="litop">5</li>
+                            <li class="litop">6</li>
+                            <li class="litop">7</li>
+                            <li class="litop">8</li>
+                        </ul>
+                    </div>
+                    <div class="side">
+                        <ul class="ulside">
+                            <li class="liside">1</li>
+                            <li class="liside">2</li>
+                            <li class="liside">3</li>
+                            <li class="liside">4</li>
+                            <li class="liside">5</li>
+                            <li class="liside">6</li>
+                            <li class="liside">7</li>
+                            <li class="liside">8</li>
+                        </ul>
+                    </div>
+                    <div class="gameboard">
+                        <table class="field">
+                            <tr class="row">
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="0"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="1"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="2"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="3"></p>
+                                </td>
+                            </tr>
+                            <tr class="row">
+                                <td class="cell">
+                                    <p class="black-piece" id="4"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="5"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="6"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="7"></p>
+                                </td>
+                                <td class="npcell"></td>
+                            </tr>
+                            <tr class="row">
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="8"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="9"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="10"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="black-piece" id="11"></p>
+                                </td>
+                            </tr>
+                            <tr class="row">
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                            </tr>
+                            <tr class="row">
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                                <td class="npcell"></td>
+                                <td class="cell"></td>
+                            </tr>
+                            <tr class="row">
+                                <td class="cell">
+                                    <p class="gold-piece" id="12"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="13"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="14"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="15"></p>
+                                </td>
+                                <td class="npcell"></td>
+                            </tr>
+                            <tr class="row">
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="16"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="17"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="18"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="19"></p>
+                                </td>
+                            </tr>
+                            <tr class="row">
+                                <td class="cell">
+                                    <p class="gold-piece" id="20"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="21"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="22"></p>
+                                </td>
+                                <td class="npcell"></td>
+                                <td class="cell">
+                                    <p class="gold-piece" id="23"></p>
+                                </td>
+                                <td class="npcell"></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="sideinfo">
+                    <div class="gamer1">
+                        <p class="black-turn-text">Gracz 1</p>
+                    </div>
+                    <div class="gamer2">
+                        <p class="gold-turn-text">Gracz 2</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="footer">
+            <p class="footerp">
+                Staszek Kopeć 2021
+            </p>
+        </div>
+    </div>
+
+</body>
+
+</html>
