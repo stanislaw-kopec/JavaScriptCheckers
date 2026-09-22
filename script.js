@@ -37,7 +37,9 @@ function createInitialBoard() {
 const gameState = {
     board: createInitialBoard(),
     currentPlayer: "gold",
-    selectedPieceIndex: null
+    selectedPieceIndex: null,
+    forcedPieceIndex: null,
+    capturedIndices: []
 };
 
 // Ta funkcja zmienia wyłącznie dane gry. Nie korzysta z elementów HTML.
@@ -48,7 +50,11 @@ function selectPiece(boardIndex) {
         return;
     }
 
-    if (hasMandatoryCapture() && getCaptures(boardIndex).length === 0) {
+    if (gameState.forcedPieceIndex !== null && boardIndex !== gameState.forcedPieceIndex) {
+        return;
+    }
+
+    if (hasMandatoryCapture() && getAvailableMoves(boardIndex).length === 0) {
         return;
     }
 
@@ -56,8 +62,8 @@ function selectPiece(boardIndex) {
 }
 
 // Każde bicie opisuje pole docelowe i pole zajęte przez zbijany pionek.
-function getCaptures(boardIndex) {
-    const piece = gameState.board[boardIndex];
+function getCaptures(boardIndex, board = gameState.board, capturedIndices = gameState.capturedIndices) {
+    const piece = board[boardIndex];
 
     if (!piece) {
         return [];
@@ -76,9 +82,10 @@ function getCaptures(boardIndex) {
             if (targetRow >= 0 && targetRow < 8 && targetColumn >= 0 && targetColumn < 8) {
                 const capturedIndex = (row + rowOffset) * 8 + column + columnOffset;
                 const targetIndex = targetRow * 8 + targetColumn;
-                const jumpedPiece = gameState.board[capturedIndex];
+                const jumpedPiece = board[capturedIndex];
 
-                if (jumpedPiece && jumpedPiece.color !== piece.color && gameState.board[targetIndex] === null) {
+                if (jumpedPiece && jumpedPiece.color !== piece.color && board[targetIndex] === null
+                    && !capturedIndices.includes(capturedIndex)) {
                     captures.push({ targetIndex: targetIndex, capturedIndex: capturedIndex });
                 }
             }
@@ -88,8 +95,60 @@ function getCaptures(boardIndex) {
     return captures;
 }
 
+// Sprawdzamy możliwą przyszłość na kopiach planszy, bez zmiany rzeczywistej gry.
+function getCaptureOptions(boardIndex, board = gameState.board, capturedIndices = gameState.capturedIndices) {
+    const options = [];
+
+    for (const capture of getCaptures(boardIndex, board, capturedIndices)) {
+        const nextBoard = board.slice();
+        nextBoard[capture.targetIndex] = nextBoard[boardIndex];
+        nextBoard[boardIndex] = null;
+        const nextCapturedIndices = capturedIndices.concat(capture.capturedIndex);
+        let remainingCaptures = 0;
+
+        // Rekurencja: ta sama funkcja sprawdza kolejne bicie po rozpatrywanym skoku.
+        for (const nextOption of getCaptureOptions(capture.targetIndex, nextBoard, nextCapturedIndices)) {
+            remainingCaptures = Math.max(remainingCaptures, nextOption.captureCount);
+        }
+
+        options.push({
+            targetIndex: capture.targetIndex,
+            capturedIndex: capture.capturedIndex,
+            captureCount: 1 + remainingCaptures
+        });
+    }
+
+    return options;
+}
+
+function getRequiredCaptureCount() {
+    let maximum = 0;
+
+    for (let index = 0; index < gameState.board.length; index++) {
+        const piece = gameState.board[index];
+
+        if (!piece || piece.color !== gameState.currentPlayer) {
+            continue;
+        }
+
+        if (gameState.forcedPieceIndex !== null && index !== gameState.forcedPieceIndex) {
+            continue;
+        }
+
+        for (const option of getCaptureOptions(index)) {
+            maximum = Math.max(maximum, option.captureCount);
+        }
+    }
+
+    return maximum;
+}
+
 // Wystarczy jedno dostępne bicie dowolnym pionkiem aktualnego gracza.
 function hasMandatoryCapture() {
+    if (gameState.forcedPieceIndex !== null) {
+        return getCaptures(gameState.forcedPieceIndex).length > 0;
+    }
+
     for (let index = 0; index < gameState.board.length; index++) {
         const piece = gameState.board[index];
 
@@ -109,11 +168,19 @@ function getAvailableMoves(boardIndex) {
         return [];
     }
 
-    if (hasMandatoryCapture()) {
+    if (gameState.forcedPieceIndex !== null && boardIndex !== gameState.forcedPieceIndex) {
+        return [];
+    }
+
+    const requiredCaptures = getRequiredCaptureCount();
+
+    if (requiredCaptures > 0 || gameState.forcedPieceIndex !== null) {
         const moves = [];
 
-        for (const capture of getCaptures(boardIndex)) {
-            moves.push(capture.targetIndex);
+        for (const capture of getCaptureOptions(boardIndex)) {
+            if (capture.captureCount === requiredCaptures) {
+                moves.push(capture.targetIndex);
+            }
         }
 
         return moves;
@@ -155,15 +222,34 @@ function makeMove(targetIndex) {
         return false;
     }
 
-    // Usuwamy przeciwnika tylko wtedy, gdy zatwierdzony ruch jest biciem.
+    let capturedIndex = null;
+
     for (const capture of getCaptures(sourceIndex)) {
         if (capture.targetIndex === targetIndex) {
-            gameState.board[capture.capturedIndex] = null;
+            capturedIndex = capture.capturedIndex;
         }
     }
 
     gameState.board[targetIndex] = gameState.board[sourceIndex];
     gameState.board[sourceIndex] = null;
+
+    if (capturedIndex !== null) {
+        // Zbity pionek pozostaje przeszkodą do zakończenia całej serii.
+        gameState.capturedIndices.push(capturedIndex);
+
+        if (getCaptures(targetIndex).length > 0) {
+            gameState.forcedPieceIndex = targetIndex;
+            gameState.selectedPieceIndex = targetIndex;
+            return true;
+        }
+    }
+
+    // Dopiero po ostatnim skoku usuwamy zbite pionki i przekazujemy turę.
+    for (const index of gameState.capturedIndices) {
+        gameState.board[index] = null;
+    }
+    gameState.capturedIndices = [];
+    gameState.forcedPieceIndex = null;
     gameState.selectedPieceIndex = null;
 
     if (gameState.currentPlayer === "gold") {
@@ -195,6 +281,10 @@ function renderBoard() {
             pieceElement.id = String(piece.id);
             pieceElement.className = piece.color + "-piece";
 
+            if (gameState.capturedIndices.includes(index)) {
+                pieceElement.classList.add("captured-piece");
+            }
+
             if (gameState.selectedPieceIndex === index) {
                 pieceElement.classList.add("selected-piece");
             }
@@ -216,7 +306,9 @@ function renderTurn() {
         message = "Tura: złote pionki";
     }
 
-    if (hasMandatoryCapture()) {
+    if (gameState.forcedPieceIndex !== null) {
+        message += " — kontynuuj bicie tym samym pionkiem.";
+    } else if (hasMandatoryCapture()) {
         message += " — obowiązkowe bicie.";
     }
 

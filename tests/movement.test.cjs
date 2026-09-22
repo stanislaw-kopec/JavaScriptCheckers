@@ -95,6 +95,8 @@ function setPosition(game, currentPlayer, pieces) {
     game.run(`gameState.board = ${JSON.stringify(board)};
         gameState.currentPlayer = ${JSON.stringify(currentPlayer)};
         gameState.selectedPieceIndex = null;
+        gameState.forcedPieceIndex = null;
+        gameState.capturedIndices = [];
         renderBoard();`);
 }
 
@@ -350,4 +352,161 @@ test("the opening example produces a mandatory capture and updates the next play
     assert.equal(game.state().currentPlayer, "black");
     assert.equal(game.labels[".turn-status"].textContent, "Tura: czarne pionki — obowiązkowe bicie.");
     assert.equal(game.labels[".gamer1"].classList.contains("active-turn"), true);
+});
+
+for (const color of ["gold", "black"]) {
+    test(`${color} must finish a two-capture sequence with the same piece`, () => {
+        const game = createGame();
+        const opponent = color === "gold" ? "black" : "gold";
+        setPosition(game, color, [[42, color], [33, opponent], [17, opponent], [46, color], [37, opponent]]);
+        game.cells[42].children[0].click();
+        game.cells[24].click();
+        const afterFirstJump = game.state();
+        assert.equal(afterFirstJump.currentPlayer, color);
+        assert.equal(afterFirstJump.forcedPieceIndex, 24);
+        assert.equal(afterFirstJump.selectedPieceIndex, 24);
+        assert.deepEqual(afterFirstJump.capturedIndices, [33]);
+        assert.equal(afterFirstJump.board.filter(Boolean).length, 5);
+        assert.equal(game.cells[33].children[0].classList.contains("captured-piece"), true);
+        assert.equal(game.cells[24].children[0].classList.contains("selected-piece"), true);
+        assert.deepEqual(game.highlights(), [10]);
+        assert.match(game.labels[".turn-status"].textContent, /kontynuuj bicie tym samym pionkiem/);
+        // Nie wolno zmienić pionka ani zbić drugi raz tego samego przeciwnika.
+        game.cells[46].children[0].click();
+        game.cells[33].children[0].click();
+        game.cells[42].click();
+        game.cells[26].click();
+        assert.deepEqual(game.state(), afterFirstJump);
+        assert.equal(game.run("getAvailableMoves(46).length"), 0);
+        game.run("gameState.selectedPieceIndex = 46");
+        const invalidSelection = game.state();
+        assert.equal(game.run("makeMove(28)"), false);
+        assert.deepEqual(game.state(), invalidSelection);
+        game.cells[24].children[0].click();
+        game.cells[10].click();
+        const finished = game.state();
+        assert.equal(finished.board[10].id, 42);
+        assert.equal(finished.board[33], null);
+        assert.equal(finished.board[17], null);
+        assert.equal(finished.board[24], null);
+        assert.equal(finished.board.filter(Boolean).length, 3);
+        assert.equal(finished.currentPlayer, opponent);
+        assert.equal(finished.forcedPieceIndex, null);
+        assert.equal(finished.selectedPieceIndex, null);
+        assert.deepEqual(finished.capturedIndices, []);
+        assert.deepEqual(game.highlights(), []);
+        assert.equal(game.cells[33].children.length, 0);
+        assert.equal(game.cells[17].children.length, 0);
+    });
+}
+
+test("a shorter capture branch is rejected even when it captures a king", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [35, "black"], [19, "black"]]);
+    game.run("gameState.board[33].isKing = true; renderBoard();");
+    assert.equal(game.run("getRequiredCaptureCount()"), 2);
+    game.cells[42].children[0].click();
+    assert.deepEqual(game.highlights(), [28]);
+    const before = game.state();
+    assert.equal(game.run("makeMove(24)"), false);
+    assert.deepEqual(game.state(), before);
+    game.cells[28].click();
+    assert.deepEqual(game.highlights(), [10]);
+    game.cells[10].click();
+    assert.equal(game.state().board[33].isKing, true);
+    assert.equal(game.state().board[35], null);
+    assert.equal(game.state().board[19], null);
+    assert.equal(game.state().currentPlayer, "black");
+});
+
+test("the maximum capture count is compared across all friendly pieces", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [17, "black"], [46, "gold"], [37, "black"]]);
+    assert.equal(game.run("getCaptures(46).length"), 1);
+    assert.equal(game.run("getAvailableMoves(46).length"), 0);
+    game.cells[46].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, null);
+    game.cells[42].children[0].click();
+    assert.deepEqual(game.highlights(), [24]);
+    game.cells[46].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, 42);
+});
+
+test("equally long captures by different pieces can both be selected before the first jump", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[8, "gold"], [12, "gold"], [17, "black"], [21, "black"]]);
+    game.cells[8].children[0].click();
+    assert.deepEqual(game.highlights(), [26]);
+    game.cells[12].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, 12);
+    assert.deepEqual(game.highlights(), [30]);
+});
+
+test("the longest continuation remains mandatory after a shared first jump", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[49, "gold"], [42, "black"], [26, "black"], [28, "black"], [10, "black"]]);
+    assert.equal(game.run("getRequiredCaptureCount()"), 3);
+    game.cells[49].children[0].click();
+    assert.deepEqual(game.highlights(), [35]);
+    game.cells[35].click();
+    assert.equal(game.run("getCaptures(35).length"), 2);
+    assert.deepEqual(game.highlights(), [17]);
+    const before = game.state();
+    game.cells[21].click();
+    assert.deepEqual(game.state(), before);
+    game.cells[17].click();
+    assert.deepEqual(game.highlights(), [3]);
+    game.cells[3].click();
+    assert.equal(game.state().board[3].id, 49);
+    assert.equal(game.state().board[28].id, 28);
+    assert.equal(game.state().board.filter(Boolean).length, 2);
+    assert.equal(game.state().currentPlayer, "black");
+});
+
+test("equal longest branches allow a four-capture circuit ending on the starting field", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [17, "black"], [19, "black"], [35, "black"]]);
+    game.cells[42].children[0].click();
+    assert.equal(game.run("getRequiredCaptureCount()"), 4);
+    assert.deepEqual(game.highlights(), [24, 28]);
+    for (const [target, count] of [[24, 1], [10, 2], [28, 3]]) {
+        game.cells[target].click();
+        assert.equal(game.state().currentPlayer, "gold");
+        assert.equal(game.state().forcedPieceIndex, target);
+        assert.equal(game.state().capturedIndices.length, count);
+        assert.equal(new Set(game.state().capturedIndices).size, count);
+    }
+    assert.deepEqual(game.highlights(), [42]);
+    game.cells[42].click();
+    assert.equal(game.state().board[42].id, 42);
+    assert.equal(game.state().board.filter(Boolean).length, 1);
+    assert.equal(game.state().currentPlayer, "black");
+    assert.deepEqual(game.state().capturedIndices, []);
+});
+
+test("looking ahead never mutates the real board or the pending capture list", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [17, "black"], [19, "black"], [35, "black"]]);
+    game.run("const originalBoard = gameState.board; const originalPiece = gameState.board[42];");
+    const before = game.state();
+    game.run("getCaptureOptions(42); getRequiredCaptureCount(); getAvailableMoves(42);");
+    assert.deepEqual(game.state(), before);
+    assert.equal(game.run("gameState.board === originalBoard && gameState.board[42] === originalPiece"), true);
+    game.cells[42].children[0].click();
+    game.cells[24].click();
+    const duringSequence = game.state();
+    game.run("getCaptureOptions(24); getRequiredCaptureCount(); renderBoard();");
+    assert.deepEqual(game.state(), duringSequence);
+});
+
+test("a quiet move still ends the turn even when it creates a future capture", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[40, "gold"], [26, "black"]]);
+    game.cells[40].children[0].click();
+    game.cells[33].click();
+    assert.equal(game.run("getCaptures(33).length"), 1);
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.state().forcedPieceIndex, null);
+    assert.equal(game.state().selectedPieceIndex, null);
+    assert.deepEqual(game.state().capturedIndices, []);
 });

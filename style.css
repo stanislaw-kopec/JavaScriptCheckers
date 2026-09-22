@@ -163,6 +163,9 @@ button {
     outline: 3px solid #F0F8FF;
     outline-offset: 2px;
 }
+.captured-piece {
+    opacity: 0.35;
+}
 .damka.black-piece{
     background-color: #03396c;
     border: solid 3px #011f4b;
