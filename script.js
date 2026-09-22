@@ -48,15 +48,75 @@ function selectPiece(boardIndex) {
         return;
     }
 
+    if (hasMandatoryCapture() && getCaptures(boardIndex).length === 0) {
+        return;
+    }
+
     gameState.selectedPieceIndex = boardIndex;
 }
 
-// Zwracamy numery pustych pól, na które pionek może wykonać zwykły ruch.
+// Każde bicie opisuje pole docelowe i pole zajęte przez zbijany pionek.
+function getCaptures(boardIndex) {
+    const piece = gameState.board[boardIndex];
+
+    if (!piece) {
+        return [];
+    }
+
+    const row = Math.floor(boardIndex / 8);
+    const column = boardIndex % 8;
+    const captures = [];
+
+    // Obie pętle razem sprawdzają cztery przekątne, także do tyłu.
+    for (const rowOffset of [-1, 1]) {
+        for (const columnOffset of [-1, 1]) {
+            const targetRow = row + 2 * rowOffset;
+            const targetColumn = column + 2 * columnOffset;
+
+            if (targetRow >= 0 && targetRow < 8 && targetColumn >= 0 && targetColumn < 8) {
+                const capturedIndex = (row + rowOffset) * 8 + column + columnOffset;
+                const targetIndex = targetRow * 8 + targetColumn;
+                const jumpedPiece = gameState.board[capturedIndex];
+
+                if (jumpedPiece && jumpedPiece.color !== piece.color && gameState.board[targetIndex] === null) {
+                    captures.push({ targetIndex: targetIndex, capturedIndex: capturedIndex });
+                }
+            }
+        }
+    }
+
+    return captures;
+}
+
+// Wystarczy jedno dostępne bicie dowolnym pionkiem aktualnego gracza.
+function hasMandatoryCapture() {
+    for (let index = 0; index < gameState.board.length; index++) {
+        const piece = gameState.board[index];
+
+        if (piece && piece.color === gameState.currentPlayer && getCaptures(index).length > 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Zwracamy pola dozwolonych bić albo — gdy żaden pionek nie może bić — zwykłych ruchów.
 function getAvailableMoves(boardIndex) {
     const piece = gameState.board[boardIndex];
 
     if (!piece || piece.color !== gameState.currentPlayer) {
         return [];
+    }
+
+    if (hasMandatoryCapture()) {
+        const moves = [];
+
+        for (const capture of getCaptures(boardIndex)) {
+            moves.push(capture.targetIndex);
+        }
+
+        return moves;
     }
 
     const row = Math.floor(boardIndex / 8);
@@ -93,6 +153,13 @@ function makeMove(targetIndex) {
     // Odrzucony ruch nie zmienia planszy, zaznaczenia ani tury.
     if (!availableMoves.includes(targetIndex)) {
         return false;
+    }
+
+    // Usuwamy przeciwnika tylko wtedy, gdy zatwierdzony ruch jest biciem.
+    for (const capture of getCaptures(sourceIndex)) {
+        if (capture.targetIndex === targetIndex) {
+            gameState.board[capture.capturedIndex] = null;
+        }
     }
 
     gameState.board[targetIndex] = gameState.board[sourceIndex];
@@ -147,6 +214,10 @@ function renderTurn() {
 
     if (gameState.currentPlayer === "gold") {
         message = "Tura: złote pionki";
+    }
+
+    if (hasMandatoryCapture()) {
+        message += " — obowiązkowe bicie.";
     }
 
     if (turnStatus.textContent !== message) {

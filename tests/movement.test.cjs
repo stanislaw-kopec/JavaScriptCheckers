@@ -87,6 +87,17 @@ function createGame() {
     };
 }
 
+function setPosition(game, currentPlayer, pieces) {
+    const board = Array(64).fill(null);
+    for (const [index, color] of pieces) {
+        board[index] = { id: index, color: color, isKing: false };
+    }
+    game.run(`gameState.board = ${JSON.stringify(board)};
+        gameState.currentPlayer = ${JSON.stringify(currentPlayer)};
+        gameState.selectedPieceIndex = null;
+        renderBoard();`);
+}
+
 test("gold starts with 24 pieces and no selected destination", () => {
     const game = createGame();
     assert.equal(game.cells.length, 64);
@@ -137,9 +148,10 @@ for (const [color, source, expected] of [
 }
 
 for (const blockerColor of ["gold", "black"]) {
-    test(`a ${blockerColor} piece blocks the destination without being captured`, () => {
+    test(`a ${blockerColor} piece cannot be landed on or jumped over to an occupied field`, () => {
         const game = createGame();
         game.run(`gameState.board[33] = { id: 99, color: "${blockerColor}", isKing: false };
+            gameState.board[26] = { id: 98, color: "gold", isKing: false };
             selectPiece(40);`);
         const before = game.state();
         assert.equal(game.run("getAvailableMoves(40).length"), 0);
@@ -186,7 +198,8 @@ test("a legal move preserves the piece and clears the origin and selection", () 
 
 test("successive clicks move both colors, update turns and clear old hints", () => {
     const game = createGame();
-    for (const [source, target] of [[40, 33], [17, 24], [42, 35], [19, 26], [49, 40], [10, 17]]) {
+    // Te ruchy nie tworzą obowiązku bicia; bicia sprawdzamy w osobnych scenariuszach.
+    for (const [source, target] of [[40, 33], [17, 24], [44, 37]]) {
         const piece = game.state().board[source];
         game.cells[source].children[0].click();
         assert.ok(game.highlights().includes(target));
@@ -210,4 +223,131 @@ test("successive clicks move both colors, update turns and clear old hints", () 
         game.cells[target].children[0].click();
         assert.equal(game.state().selectedPieceIndex, null);
     }
+});
+
+for (const color of ["gold", "black"]) {
+    for (const [jumped, target] of [[17, 8], [19, 12], [33, 40], [35, 44]]) {
+        test(`${color} captures from 26 over ${jumped} to ${target}`, () => {
+            const game = createGame();
+            const opponent = color === "gold" ? "black" : "gold";
+            setPosition(game, color, [[26, color], [jumped, opponent]]);
+            game.cells[26].children[0].click();
+            assert.deepEqual(game.highlights(), [target]);
+            assert.equal(game.run("hasMandatoryCapture()"), true);
+            game.cells[target].click();
+            const state = game.state();
+            assert.equal(state.board[26], null);
+            assert.equal(state.board[jumped], null);
+            assert.deepEqual(state.board[target], { id: 26, color: color, isKing: false });
+            assert.equal(state.board.filter(Boolean).length, 1);
+            assert.equal(state.currentPlayer, opponent);
+            assert.equal(state.selectedPieceIndex, null);
+            assert.equal(game.cells[jumped].children.length, 0);
+            assert.equal(game.cells[target].children[0].id, "26");
+            assert.deepEqual(game.highlights(), []);
+        });
+    }
+}
+
+for (const [source, jumped] of [[1, 8], [14, 23], [49, 56], [62, 55]]) {
+    test(`capture from ${source} over ${jumped} cannot wrap across the board edge`, () => {
+        const game = createGame();
+        setPosition(game, "gold", [[source, "gold"], [jumped, "black"]]);
+        assert.equal(game.run(`getCaptures(${source}).length`), 0);
+        assert.equal(game.run("hasMandatoryCapture()"), false);
+    });
+}
+
+for (const color of ["gold", "black"]) {
+    test(`a capture cannot land on an occupied ${color} piece`, () => {
+        const game = createGame();
+        setPosition(game, "gold", [[26, "gold"], [17, "black"], [8, color]]);
+        game.run("selectPiece(26)");
+        const before = game.state();
+        assert.equal(game.run("getCaptures(26).length"), 0);
+        assert.equal(game.run("makeMove(8)"), false);
+        assert.deepEqual(game.state(), before);
+    });
+}
+
+test("a piece cannot jump over an empty field or its own piece", () => {
+    const game = createGame();
+    for (const pieces of [[[26, "gold"]], [[26, "gold"], [17, "gold"]]]) {
+        setPosition(game, "gold", pieces);
+        game.run("selectPiece(26)");
+        const before = game.state();
+        assert.equal(game.run("getCaptures(26).length"), 0);
+        assert.equal(game.run("makeMove(8)"), false);
+        assert.deepEqual(game.state(), before);
+    }
+});
+
+test("mandatory capture blocks quiet moves and selection of non-capturing teammates", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [46, "gold"]]);
+    assert.equal(game.labels[".turn-status"].textContent, "Tura: złote pionki — obowiązkowe bicie.");
+    game.cells[46].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, null);
+    assert.equal(game.run("getAvailableMoves(46).length"), 0);
+    game.cells[42].children[0].click();
+    assert.deepEqual(game.highlights(), [24]);
+    const before = game.state();
+    game.cells[35].click();
+    assert.deepEqual(game.state(), before);
+    game.cells[46].children[0].click();
+    assert.deepEqual(game.state(), before);
+    // Walidacja ruchu działa także niezależnie od obsługi kliknięć.
+    game.run("gameState.selectedPieceIndex = 46");
+    const forcedSelection = game.state();
+    assert.equal(game.run("makeMove(37)"), false);
+    assert.deepEqual(game.state(), forcedSelection);
+});
+
+test("an available capture belonging only to the opponent does not block a quiet move", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[35, "gold"], [26, "black"], [17, "black"]]);
+    assert.equal(game.run("getCaptures(26).length"), 1);
+    assert.equal(game.run("hasMandatoryCapture()"), false);
+    game.cells[35].children[0].click();
+    assert.deepEqual(game.highlights(), [28]);
+    game.cells[28].click();
+    assert.equal(game.state().board[28].color, "gold");
+    assert.equal(game.state().board.filter(Boolean).length, 3);
+});
+
+test("all four capture choices are offered and only the chosen opponent is removed", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[26, "gold"], [17, "black"], [19, "black"], [33, "black"], [35, "black"]]);
+    // Numer 0 i status damki przeciwnika nie mogą uniemożliwić jego zbicia.
+    game.run("gameState.board[35].id = 0; gameState.board[35].isKing = true; renderBoard();");
+    game.cells[26].children[0].click();
+    assert.deepEqual(game.highlights(), [8, 12, 40, 44]);
+    game.cells[44].click();
+    const state = game.state();
+    assert.equal(state.board[35], null);
+    assert.equal(state.board[44].id, 26);
+    for (const index of [17, 19, 33]) assert.equal(state.board[index].id, index);
+    assert.equal(state.board.filter(Boolean).length, 4);
+});
+
+test("the opening example produces a mandatory capture and updates the next player's notice", () => {
+    const game = createGame();
+    for (const [source, target] of [[40, 33], [19, 26]]) {
+        game.cells[source].children[0].click();
+        assert.ok(game.highlights().includes(target));
+        game.cells[target].click();
+    }
+    assert.equal(game.labels[".turn-status"].textContent, "Tura: złote pionki — obowiązkowe bicie.");
+    game.cells[42].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, null);
+    game.cells[33].children[0].click();
+    assert.deepEqual(game.highlights(), [19]);
+    game.cells[19].click();
+    assert.equal(game.state().board[19].id, 12);
+    assert.equal(game.state().board[26], null);
+    assert.equal(game.state().board[33], null);
+    assert.equal(game.state().board.filter(Boolean).length, 23);
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.labels[".turn-status"].textContent, "Tura: czarne pionki — obowiązkowe bicie.");
+    assert.equal(game.labels[".gamer1"].classList.contains("active-turn"), true);
 });
