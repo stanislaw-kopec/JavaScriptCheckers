@@ -89,8 +89,8 @@ function createGame() {
 
 function setPosition(game, currentPlayer, pieces) {
     const board = Array(64).fill(null);
-    for (const [index, color] of pieces) {
-        board[index] = { id: index, color: color, isKing: false };
+    for (const [index, color, isKing = false] of pieces) {
+        board[index] = { id: index, color: color, isKing: isKing };
     }
     game.run(`gameState.board = ${JSON.stringify(board)};
         gameState.currentPlayer = ${JSON.stringify(currentPlayer)};
@@ -509,4 +509,195 @@ test("a quiet move still ends the turn even when it creates a future capture", (
     assert.equal(game.state().forcedPieceIndex, null);
     assert.equal(game.state().selectedPieceIndex, null);
     assert.deepEqual(game.state().capturedIndices, []);
+});
+
+for (const color of ["gold", "black"]) {
+    test(`${color} king moves any distance along all four empty diagonals`, () => {
+        const game = createGame();
+        setPosition(game, color, [[26, color, true]]);
+        game.cells[26].children[0].click();
+        assert.deepEqual(game.highlights(), [5, 8, 12, 17, 19, 33, 35, 40, 44, 53, 62]);
+        for (const index of game.highlights()) assert.equal(game.cells[index].classList.contains("cell"), true);
+        game.cells[5].click();
+        assert.equal(game.state().board[26], null);
+        assert.deepEqual(game.state().board[5], { id: 26, color: color, isKing: true });
+        assert.equal(game.cells[5].children[0].textContent, "♛");
+        assert.equal(game.cells[5].children[0].classList.contains("king"), true);
+        assert.equal(game.cells[5].children[0].classList.contains(color + "-piece"), true);
+    });
+}
+
+test("friendly pieces stop a king, and horizontal or vertical moves are rejected", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[26, "gold", true], [17, "gold"], [44, "gold"]]);
+    game.cells[26].children[0].click();
+    assert.deepEqual(game.highlights(), [5, 12, 19, 33, 35, 40]);
+    const before = game.state();
+    for (const target of [8, 17, 44, 53, 62, 27, 34, -1, 64]) {
+        assert.equal(game.run(`makeMove(${target})`), false);
+        assert.deepEqual(game.state(), before);
+    }
+});
+
+for (const [color, source, target, jumped] of [
+    ["gold", 8, 1, null], ["black", 55, 62, null],
+    ["gold", 17, 3, 10], ["black", 46, 60, 53]
+]) {
+    test(`${color} promotes at ${target} after ${jumped === null ? "a quiet move" : "a capture"}`, () => {
+        const game = createGame();
+        const opponent = color === "gold" ? "black" : "gold";
+        const pieces = [[source, color]];
+        if (jumped !== null) pieces.push([jumped, opponent]);
+        setPosition(game, color, pieces);
+        game.cells[source].children[0].click();
+        game.cells[target].click();
+        assert.deepEqual(game.state().board[target], { id: source, color: color, isKing: true });
+        assert.equal(game.state().currentPlayer, opponent);
+        assert.equal(game.state().forcedPieceIndex, null);
+        assert.equal(game.cells[target].children[0].textContent, "♛");
+        assert.equal(game.cells[target].children[0].title, color === "gold" ? "Złota damka" : "Czarna damka");
+        if (jumped !== null) assert.equal(game.state().board[jumped], null);
+    });
+}
+
+for (const color of ["gold", "black"]) {
+    test(`${color} does not promote in the middle of a sequence that leaves the last rank`, () => {
+        const game = createGame();
+        const opponent = color === "gold" ? "black" : "gold";
+        const position = index => color === "gold" ? index : 63 - index;
+        setPosition(game, color, [[position(17), color], [position(10), opponent], [position(12), opponent]]);
+        assert.equal(game.run("getRequiredCaptureCount()"), 2);
+        assert.equal(game.state().board[position(17)].isKing, false);
+        game.cells[position(17)].children[0].click();
+        game.cells[position(3)].click();
+        assert.equal(game.state().board[position(3)].isKing, false);
+        assert.equal(game.state().currentPlayer, color);
+        assert.equal(game.cells[position(3)].children[0].classList.contains("king"), false);
+        assert.deepEqual(game.highlights(), [position(21)]);
+        const before = game.state();
+        assert.equal(game.run(`makeMove(${position(30)})`), false);
+        assert.deepEqual(game.state(), before);
+        game.cells[position(21)].click();
+        assert.equal(game.state().board[position(21)].isKing, false);
+        assert.equal(game.state().currentPlayer, opponent);
+    });
+}
+
+test("promotion does not extend a completed pawn capture with flying king abilities", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[17, "gold"], [10, "black"], [21, "black"]]);
+    assert.equal(game.run("getRequiredCaptureCount()"), 1);
+    game.cells[17].children[0].click();
+    game.cells[3].click();
+    assert.equal(game.state().board[3].isKing, true);
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.state().forcedPieceIndex, null);
+    assert.equal(game.state().board[21].color, "black");
+    assert.equal(game.run("getCaptures(3).length"), 2);
+});
+
+for (const color of ["gold", "black"]) {
+    for (const [jumped, destinations] of [[17, [8]], [21, [7, 14]], [49, [56]], [53, [62]]]) {
+        test(`${color} king captures a distant opponent at ${jumped}`, () => {
+            const game = createGame();
+            const opponent = color === "gold" ? "black" : "gold";
+            setPosition(game, color, [[35, color, true], [jumped, opponent]]);
+            game.cells[35].children[0].click();
+            assert.deepEqual(game.highlights(), destinations);
+            game.cells[destinations[0]].click();
+            assert.equal(game.state().board[jumped], null);
+            assert.equal(game.state().board[destinations[0]].isKing, true);
+            assert.equal(game.state().board[destinations[0]].color, color);
+            assert.equal(game.state().currentPlayer, opponent);
+        });
+    }
+}
+
+test("a king cannot capture an opponent without a free landing square behind it", () => {
+    const game = createGame();
+    for (const pieces of [
+        [[26, "gold", true], [8, "black"]],
+        [[56, "gold", true], [35, "black"], [28, "black"]],
+        [[56, "gold", true], [35, "black"], [28, "gold"]],
+        [[56, "gold", true], [42, "gold"], [35, "black"]]
+    ]) {
+        setPosition(game, "gold", pieces);
+        assert.equal(game.run(`getCaptures(${pieces[0][0]}).length`), 0);
+    }
+});
+
+test("a king cannot jump over two opponents at once, but can capture them in separate jumps", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[56, "gold", true], [35, "black"], [21, "black"]]);
+    game.cells[56].children[0].click();
+    assert.deepEqual(game.highlights(), [28]);
+    const before = game.state();
+    assert.equal(game.run("makeMove(14)"), false);
+    assert.deepEqual(game.state(), before);
+    game.cells[28].click();
+    assert.equal(game.state().currentPlayer, "gold");
+    assert.equal(game.state().forcedPieceIndex, 28);
+    assert.deepEqual(game.highlights(), [7, 14]);
+    assert.equal(game.cells[35].children[0].classList.contains("captured-piece"), true);
+    game.cells[14].click();
+    assert.equal(game.state().board[35], null);
+    assert.equal(game.state().board[21], null);
+    assert.equal(game.state().board[14].isKing, true);
+    assert.equal(game.state().currentPlayer, "black");
+});
+
+test("only the king landing square that leads to the longest sequence is offered", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[56, "gold", true], [35, "black"], [12, "black"]]);
+    assert.equal(game.run("getCaptures(56).length"), 4);
+    game.cells[56].children[0].click();
+    assert.deepEqual(game.highlights(), [21]);
+    const before = game.state();
+    game.run("getCaptureOptions(56); getRequiredCaptureCount();");
+    assert.deepEqual(game.state(), before);
+    game.cells[28].click();
+    assert.deepEqual(game.state(), before);
+    game.cells[21].click();
+    assert.deepEqual(game.highlights(), [3]);
+    game.cells[3].click();
+    assert.equal(game.state().board.filter(Boolean).length, 1);
+    assert.equal(game.state().board[3].id, 56);
+    assert.equal(game.state().currentPlayer, "black");
+});
+
+test("a captured opponent blocks a king from reversing through it to another opponent", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[26, "gold", true], [17, "black"], [35, "black"]]);
+    assert.equal(game.run("getRequiredCaptureCount()"), 1);
+    game.cells[26].children[0].click();
+    assert.deepEqual(game.highlights(), [8, 44, 53, 62]);
+    game.cells[44].click();
+    assert.equal(game.state().board[35], null);
+    assert.equal(game.state().board[17].color, "black");
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.state().forcedPieceIndex, null);
+});
+
+test("a king must respect a teammate's mandatory capture", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[56, "gold", true], [26, "gold"], [17, "black"]]);
+    game.cells[56].children[0].click();
+    assert.equal(game.state().selectedPieceIndex, null);
+    assert.equal(game.run("getAvailableMoves(56).length"), 0);
+    game.cells[26].children[0].click();
+    assert.deepEqual(game.highlights(), [8]);
+});
+
+test("the manual example promotes a pawn then captures across the board", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[8, "gold"], [21, "black"]]);
+    for (const [source, target] of [[8, 1], [21, 28], [1, 55]]) {
+        game.cells[source].children[0].click();
+        assert.ok(game.highlights().includes(target));
+        game.cells[target].click();
+    }
+    assert.equal(game.state().board[55].isKing, true);
+    assert.equal(game.state().board[55].id, 8);
+    assert.equal(game.state().board[28], null);
+    assert.equal(game.cells[55].children[0].textContent, "♛");
 });

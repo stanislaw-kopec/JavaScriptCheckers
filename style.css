@@ -166,13 +166,17 @@ button {
 .captured-piece {
     opacity: 0.35;
 }
-.damka.black-piece{
-    background-color: #03396c;
-    border: solid 3px #011f4b;
+.king {
+    font-family: Georgia, serif;
+    font-size: 28px;
+    line-height: 40px;
+    user-select: none;
 }
-.damka.black-piece{
-    background-color: #b3cde0;
-    border: solid 3px #6497b1;
+.black-piece.king {
+    color: #ffcf40;
+}
+.gold-piece.king {
+    color: #222222;
 }
 .gamer1, .gamer2{
     display: inline-flex;

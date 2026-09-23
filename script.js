@@ -61,12 +61,53 @@ function selectPiece(boardIndex) {
     gameState.selectedPieceIndex = boardIndex;
 }
 
+// Damka przegląda całą przekątną, zapamiętując pierwszego napotkanego przeciwnika.
+function getKingCaptures(boardIndex, board, capturedIndices) {
+    const piece = board[boardIndex];
+    const row = Math.floor(boardIndex / 8);
+    const column = boardIndex % 8;
+    const captures = [];
+
+    for (const rowOffset of [-1, 1]) {
+        for (const columnOffset of [-1, 1]) {
+            let nextRow = row + rowOffset;
+            let nextColumn = column + columnOffset;
+            let capturedIndex = null;
+
+            while (nextRow >= 0 && nextRow < 8 && nextColumn >= 0 && nextColumn < 8) {
+                const index = nextRow * 8 + nextColumn;
+                const encounteredPiece = board[index];
+
+                if (encounteredPiece !== null) {
+                    // Własny pionek, zbity już pionek lub drugi przeciwnik zatrzymuje skanowanie.
+                    if (encounteredPiece.color === piece.color || capturedIndices.includes(index)
+                        || capturedIndex !== null) {
+                        break;
+                    }
+                    capturedIndex = index;
+                } else if (capturedIndex !== null) {
+                    captures.push({ targetIndex: index, capturedIndex: capturedIndex });
+                }
+
+                nextRow += rowOffset;
+                nextColumn += columnOffset;
+            }
+        }
+    }
+
+    return captures;
+}
+
 // Każde bicie opisuje pole docelowe i pole zajęte przez zbijany pionek.
 function getCaptures(boardIndex, board = gameState.board, capturedIndices = gameState.capturedIndices) {
     const piece = board[boardIndex];
 
     if (!piece) {
         return [];
+    }
+
+    if (piece.isKing) {
+        return getKingCaptures(boardIndex, board, capturedIndices);
     }
 
     const row = Math.floor(boardIndex / 8);
@@ -160,6 +201,34 @@ function hasMandatoryCapture() {
     return false;
 }
 
+// Zwykły ruch damki kończy się przed pierwszym zajętym polem na przekątnej.
+function getKingMoves(boardIndex) {
+    const row = Math.floor(boardIndex / 8);
+    const column = boardIndex % 8;
+    const moves = [];
+
+    for (const rowOffset of [-1, 1]) {
+        for (const columnOffset of [-1, 1]) {
+            let nextRow = row + rowOffset;
+            let nextColumn = column + columnOffset;
+
+            while (nextRow >= 0 && nextRow < 8 && nextColumn >= 0 && nextColumn < 8) {
+                const targetIndex = nextRow * 8 + nextColumn;
+
+                if (gameState.board[targetIndex] !== null) {
+                    break;
+                }
+
+                moves.push(targetIndex);
+                nextRow += rowOffset;
+                nextColumn += columnOffset;
+            }
+        }
+    }
+
+    return moves;
+}
+
 // Zwracamy pola dozwolonych bić albo — gdy żaden pionek nie może bić — zwykłych ruchów.
 function getAvailableMoves(boardIndex) {
     const piece = gameState.board[boardIndex];
@@ -184,6 +253,10 @@ function getAvailableMoves(boardIndex) {
         }
 
         return moves;
+    }
+
+    if (piece.isKing) {
+        return getKingMoves(boardIndex);
     }
 
     const row = Math.floor(boardIndex / 8);
@@ -211,6 +284,16 @@ function getAvailableMoves(boardIndex) {
     }
 
     return moves;
+}
+
+// Awans sprawdzamy tylko po zakończeniu ruchu, nigdy w środku serii bić.
+function promotePiece(boardIndex) {
+    const piece = gameState.board[boardIndex];
+    const row = Math.floor(boardIndex / 8);
+
+    if ((piece.color === "gold" && row === 0) || (piece.color === "black" && row === 7)) {
+        piece.isKing = true;
+    }
 }
 
 function makeMove(targetIndex) {
@@ -251,6 +334,7 @@ function makeMove(targetIndex) {
     gameState.capturedIndices = [];
     gameState.forcedPieceIndex = null;
     gameState.selectedPieceIndex = null;
+    promotePiece(targetIndex);
 
     if (gameState.currentPlayer === "gold") {
         gameState.currentPlayer = "black";
@@ -280,6 +364,12 @@ function renderBoard() {
             const pieceElement = document.createElement("p");
             pieceElement.id = String(piece.id);
             pieceElement.className = piece.color + "-piece";
+
+            if (piece.isKing) {
+                pieceElement.classList.add("king");
+                pieceElement.textContent = "♛";
+                pieceElement.title = piece.color === "gold" ? "Złota damka" : "Czarna damka";
+            }
 
             if (gameState.capturedIndices.includes(index)) {
                 pieceElement.classList.add("captured-piece");
