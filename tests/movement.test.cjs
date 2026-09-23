@@ -61,7 +61,8 @@ function createGame() {
     const labels = {
         ".gamer1": new PageElement(),
         ".gamer2": new PageElement(),
-        ".turn-status": new PageElement()
+        ".turn-status": new PageElement(),
+        ".new-game": new PageElement()
     };
     const document = {
         querySelectorAll(selector) {
@@ -97,6 +98,8 @@ function setPosition(game, currentPlayer, pieces) {
         gameState.selectedPieceIndex = null;
         gameState.forcedPieceIndex = null;
         gameState.capturedIndices = [];
+        gameState.winner = null;
+        gameState.endReason = null;
         renderBoard();`);
 }
 
@@ -700,4 +703,176 @@ test("the manual example promotes a pawn then captures across the board", () => 
     assert.equal(game.state().board[55].id, 8);
     assert.equal(game.state().board[28], null);
     assert.equal(game.cells[55].children[0].textContent, "♛");
+});
+
+for (const color of ["gold", "black"]) {
+    test(`${color} wins by capturing the last opponent and the finished board is frozen`, () => {
+        const game = createGame();
+        const opponent = color === "gold" ? "black" : "gold";
+        setPosition(game, color, [[26, color], [17, opponent]]);
+        game.cells[26].children[0].click();
+        game.cells[8].click();
+        const finished = game.state();
+        assert.equal(finished.winner, color);
+        assert.equal(finished.endReason, "no-pieces");
+        assert.equal(finished.selectedPieceIndex, null);
+        assert.equal(finished.forcedPieceIndex, null);
+        assert.deepEqual(game.highlights(), []);
+        assert.equal(game.labels[".gamer1"].classList.contains("active-turn"), false);
+        assert.equal(game.labels[".gamer2"].classList.contains("active-turn"), false);
+        assert.equal(game.labels[color === "gold" ? ".gamer2" : ".gamer1"].classList.contains("winner"), true);
+        assert.equal(game.labels[".turn-status"].textContent,
+            (color === "gold" ? "Wygrywają złote pionki!" : "Wygrywają czarne pionki!")
+            + " Przeciwnik nie ma pionków.");
+        game.cells[8].children[0].click();
+        game.cells[1].click();
+        assert.equal(game.run("makeMove(1)"), false);
+        game.run("selectPiece(8); checkGameEnd(); renderBoard();");
+        assert.deepEqual(game.state(), finished);
+    });
+
+    test(`${color} wins when the opponent still has a piece but cannot move or capture`, () => {
+        const game = createGame();
+        const opponent = color === "gold" ? "black" : "gold";
+        const position = index => color === "gold" ? index : 63 - index;
+        setPosition(game, color, [[position(40), color], [position(14), color],
+            [position(21), color], [position(7), opponent]]);
+        game.cells[position(40)].children[0].click();
+        game.cells[position(33)].click();
+        assert.equal(game.state().board[position(7)].color, opponent);
+        assert.equal(game.state().winner, color);
+        assert.equal(game.state().endReason, "no-moves");
+        assert.match(game.labels[".turn-status"].textContent, /Przeciwnik nie może wykonać ruchu\./);
+    });
+}
+
+test("a player with only a capture available has not lost", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[40, "gold"], [14, "gold"], [7, "black"]]);
+    game.cells[40].children[0].click();
+    game.cells[33].click();
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.state().winner, null);
+    assert.equal(game.state().endReason, null);
+    game.cells[7].children[0].click();
+    assert.deepEqual(game.highlights(), [21]);
+});
+
+test("a king on the last rank can move back and is not incorrectly declared blocked", () => {
+    const game = createGame();
+    setPosition(game, "black", [[40, "black"], [1, "gold", true]]);
+    game.cells[40].children[0].click();
+    game.cells[49].click();
+    assert.equal(game.state().currentPlayer, "gold");
+    assert.equal(game.state().winner, null);
+    game.cells[1].children[0].click();
+    assert.ok(game.highlights().includes(10));
+});
+
+test("victory is checked after the final capture, never between jumps", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [17, "black"]]);
+    game.cells[42].children[0].click();
+    game.cells[24].click();
+    const duringSequence = game.state();
+    game.run("checkGameEnd()");
+    assert.deepEqual(game.state(), duringSequence);
+    assert.equal(game.state().winner, null);
+    assert.match(game.labels[".turn-status"].textContent, /kontynuuj bicie/);
+    game.cells[10].click();
+    assert.equal(game.state().winner, "gold");
+    assert.equal(game.state().endReason, "no-pieces");
+    assert.deepEqual(game.state().capturedIndices, []);
+    assert.equal(game.state().board.filter(Boolean).length, 1);
+});
+
+function assertInitialGame(game) {
+    const expected = JSON.parse(game.run("JSON.stringify(createInitialState())"));
+    assert.deepEqual(game.state(), expected);
+    assert.equal(game.labels[".turn-status"].textContent, "Tura: złote pionki");
+    assert.equal(game.labels[".gamer2"].classList.contains("active-turn"), true);
+    assert.equal(game.labels[".gamer1"].classList.contains("active-turn"), false);
+    assert.equal(game.labels[".gamer1"].classList.contains("winner"), false);
+    assert.equal(game.labels[".gamer2"].classList.contains("winner"), false);
+    assert.deepEqual(game.highlights(), []);
+    const pieces = game.cells.flatMap(cell => cell.children);
+    assert.equal(pieces.length, 24);
+    assert.equal(pieces.filter(piece => piece.classList.contains("gold-piece")).length, 12);
+    assert.equal(pieces.filter(piece => piece.classList.contains("black-piece")).length, 12);
+    for (const piece of pieces) {
+        assert.equal(piece.classList.contains("king"), false);
+        assert.equal(piece.classList.contains("captured-piece"), false);
+        assert.equal(piece.classList.contains("selected-piece"), false);
+    }
+}
+
+test("the new game button resets kings, a pending capture sequence and all visual markers", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[42, "gold"], [33, "black"], [17, "black"], [62, "gold", true]]);
+    game.cells[42].children[0].click();
+    game.cells[24].click();
+    assert.equal(game.state().forcedPieceIndex, 24);
+    assert.equal(game.cells[62].children[0].classList.contains("king"), true);
+    assert.equal(game.cells[33].children[0].classList.contains("captured-piece"), true);
+    game.run("const previousBoard = gameState.board;");
+    game.labels[".new-game"].click();
+    assertInitialGame(game);
+    assert.equal(game.run("gameState.board === previousBoard"), false);
+    assert.equal(game.run("previousBoard[62].isKing"), true);
+    for (let repeat = 0; repeat < 3; repeat++) {
+        game.cells[40].children[0].click();
+        game.cells[33].click();
+        assert.equal(game.state().currentPlayer, "black");
+        assert.equal(game.state().board[33].id, 12);
+        game.labels[".new-game"].click();
+        assertInitialGame(game);
+    }
+});
+
+test("new game clears the winner and allows play after a finished match", () => {
+    const game = createGame();
+    setPosition(game, "gold", [[26, "gold"], [17, "black"]]);
+    game.cells[26].children[0].click();
+    game.cells[8].click();
+    assert.equal(game.state().winner, "gold");
+    game.labels[".new-game"].click();
+    assertInitialGame(game);
+    game.cells[40].children[0].click();
+    game.cells[33].click();
+    assert.equal(game.state().board[33].id, 12);
+    assert.equal(game.state().currentPlayer, "black");
+    assert.equal(game.state().winner, null);
+});
+
+test("a complete match from the initial board reaches a result and can be restarted", t => {
+    const game = createGame();
+    let seed = 2021;
+    let steps = 0;
+    while (game.state().winner === null && steps < 600) {
+        const moves = JSON.parse(game.run(`JSON.stringify((() => {
+            const moves = [];
+            for (let index = 0; index < gameState.board.length; index++) {
+                for (const target of getAvailableMoves(index)) moves.push([index, target]);
+            }
+            return moves;
+        })())`));
+        assert.ok(moves.length > 0, "An unfinished turn must have a legal move");
+        seed = (1664525 * seed + 1013904223) >>> 0;
+        const [source, target] = moves[seed % moves.length];
+        game.cells[source].children[0].click();
+        game.cells[target].click();
+        const state = game.state();
+        for (let index = 0; index < state.board.length; index++) {
+            if (state.board[index]) assert.equal(game.cells[index].classList.contains("cell"), true);
+        }
+        const ids = state.board.filter(Boolean).map(piece => piece.id);
+        assert.equal(new Set(ids).size, ids.length);
+        steps++;
+    }
+    assert.notEqual(game.state().winner, null, "This reproducible match should reach a result");
+    assert.ok(["no-pieces", "no-moves"].includes(game.state().endReason));
+    assert.match(game.labels[".turn-status"].textContent, /^Wygrywają/);
+    t.diagnostic(`Match completed after ${steps} moves or capture steps.`);
+    game.labels[".new-game"].click();
+    assertInitialGame(game);
 });

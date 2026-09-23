@@ -33,17 +33,27 @@ function createInitialBoard() {
     return board;
 }
 
-// Stan gry: wszystkie informacje o bieżącej rozgrywce w jednym miejscu.
-const gameState = {
-    board: createInitialBoard(),
-    currentPlayer: "gold",
-    selectedPieceIndex: null,
-    forcedPieceIndex: null,
-    capturedIndices: []
-};
+// Każda partia dostaje nową planszę i komplet początkowych wartości.
+function createInitialState() {
+    return {
+        board: createInitialBoard(),
+        currentPlayer: "gold",
+        selectedPieceIndex: null,
+        forcedPieceIndex: null,
+        capturedIndices: [],
+        winner: null,
+        endReason: null
+    };
+}
+
+const gameState = createInitialState();
 
 // Ta funkcja zmienia wyłącznie dane gry. Nie korzysta z elementów HTML.
 function selectPiece(boardIndex) {
+    if (gameState.winner !== null) {
+        return;
+    }
+
     const piece = gameState.board[boardIndex];
 
     if (!piece || piece.color !== gameState.currentPlayer) {
@@ -231,6 +241,10 @@ function getKingMoves(boardIndex) {
 
 // Zwracamy pola dozwolonych bić albo — gdy żaden pionek nie może bić — zwykłych ruchów.
 function getAvailableMoves(boardIndex) {
+    if (gameState.winner !== null) {
+        return [];
+    }
+
     const piece = gameState.board[boardIndex];
 
     if (!piece || piece.color !== gameState.currentPlayer) {
@@ -296,7 +310,37 @@ function promotePiece(boardIndex) {
     }
 }
 
+// Sprawdzamy gracza, którego tura właśnie się zaczyna.
+function checkGameEnd() {
+    if (gameState.winner !== null || gameState.forcedPieceIndex !== null) {
+        return;
+    }
+
+    let hasPieces = false;
+
+    for (let index = 0; index < gameState.board.length; index++) {
+        const piece = gameState.board[index];
+
+        if (piece && piece.color === gameState.currentPlayer) {
+            hasPieces = true;
+
+            // Wystarczy jeden legalny ruch, żeby gra trwała dalej.
+            if (getAvailableMoves(index).length > 0) {
+                return;
+            }
+        }
+    }
+
+    gameState.winner = gameState.currentPlayer === "gold" ? "black" : "gold";
+    gameState.endReason = hasPieces ? "no-moves" : "no-pieces";
+    gameState.selectedPieceIndex = null;
+}
+
 function makeMove(targetIndex) {
+    if (gameState.winner !== null) {
+        return false;
+    }
+
     const sourceIndex = gameState.selectedPieceIndex;
     const availableMoves = getAvailableMoves(sourceIndex);
 
@@ -342,13 +386,21 @@ function makeMove(targetIndex) {
         gameState.currentPlayer = "gold";
     }
 
+    checkGameEnd();
     return true;
+}
+
+function startNewGame() {
+    // Zachowujemy obiekt gameState, zastępując wszystkie jego właściwości nowymi wartościami.
+    Object.assign(gameState, createInitialState());
+    renderBoard();
 }
 
 const cells = document.querySelectorAll(".field td");
 const goldPlayer = document.querySelector(".gamer2");
 const blackPlayer = document.querySelector(".gamer1");
 const turnStatus = document.querySelector(".turn-status");
+const newGameButton = document.querySelector(".new-game");
 
 // Odtwarzamy pionki i zaznaczenie na podstawie danych zapisanych w gameState.
 function renderBoard() {
@@ -387,8 +439,11 @@ function renderBoard() {
 }
 
 function renderTurn() {
-    goldPlayer.classList.toggle("active-turn", gameState.currentPlayer === "gold");
-    blackPlayer.classList.toggle("active-turn", gameState.currentPlayer === "black");
+    const isPlaying = gameState.winner === null;
+    goldPlayer.classList.toggle("active-turn", isPlaying && gameState.currentPlayer === "gold");
+    blackPlayer.classList.toggle("active-turn", isPlaying && gameState.currentPlayer === "black");
+    goldPlayer.classList.toggle("winner", gameState.winner === "gold");
+    blackPlayer.classList.toggle("winner", gameState.winner === "black");
 
     let message = "Tura: czarne pionki";
 
@@ -396,7 +451,12 @@ function renderTurn() {
         message = "Tura: złote pionki";
     }
 
-    if (gameState.forcedPieceIndex !== null) {
+    if (gameState.winner !== null) {
+        message = gameState.winner === "gold" ? "Wygrywają złote pionki!" : "Wygrywają czarne pionki!";
+        message += gameState.endReason === "no-pieces"
+            ? " Przeciwnik nie ma pionków."
+            : " Przeciwnik nie może wykonać ruchu.";
+    } else if (gameState.forcedPieceIndex !== null) {
         message += " — kontynuuj bicie tym samym pionkiem.";
     } else if (hasMandatoryCapture()) {
         message += " — obowiązkowe bicie.";
@@ -429,4 +489,5 @@ function giveCellsEventListeners() {
 
 // Pola pozostają na stronie, więc ich obsługa kliknięć przetrwa odtworzenie pionków.
 giveCellsEventListeners();
+newGameButton.addEventListener("click", startNewGame);
 renderBoard();

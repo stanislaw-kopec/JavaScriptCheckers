@@ -209,3 +209,15 @@ button {
     font-weight: bold;
     color: #222222;
 }
+.sideinfo .winner {
+    outline: 3px solid #222222;
+    outline-offset: 4px;
+}
+.new-game {
+    width: auto;
+    margin-left: 40px;
+}
+.new-game:focus-visible {
+    outline: 3px solid #222222;
+    outline-offset: 3px;
+}
